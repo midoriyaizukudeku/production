@@ -24,10 +24,11 @@ func (app *Application) Routes() http.Handler {
 	router.Handler(http.MethodGet, "/", dynamic.ThenFunc(app.Home))
 	router.Handler(http.MethodGet, "/snippet/view/:id", dynamic.ThenFunc(app.ViewSnipppet))
 
-	router.Handler(http.MethodGet, "/user/signup", dynamic.ThenFunc(app.userSignup))
-	router.Handler(http.MethodPost, "/user/signup", dynamic.ThenFunc(app.userSignupPost))
-	router.Handler(http.MethodGet, "/user/login", dynamic.ThenFunc(app.userLogin))
-	router.Handler(http.MethodPost, "/user/login", dynamic.ThenFunc(app.userLoginPost))
+	authRedirect := dynamic.Append(app.IfAuthenticated)
+	router.Handler(http.MethodGet, "/user/signup", authRedirect.ThenFunc(app.userSignup))
+	router.Handler(http.MethodPost, "/user/signup", authRedirect.ThenFunc(app.userSignupPost))
+	router.Handler(http.MethodGet, "/user/login", authRedirect.ThenFunc(app.userLogin))
+	router.Handler(http.MethodPost, "/user/login", authRedirect.ThenFunc(app.userLoginPost))
 
 	protectedRoutes := dynamic.Append(app.requireAuthenticated)
 

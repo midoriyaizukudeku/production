@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"html/template"
@@ -31,15 +29,13 @@ type Application struct {
 
 func main() {
 	// Load environment variables from .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	_ = godotenv.Load()
 
-	addr := os.Getenv("APP_ADDR")
-	if addr == "" {
-		log.Fatal("APP_ADDR is not set")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	addr := ":" + port
 	log.Printf("Starting server on %s", addr)
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
@@ -68,7 +64,7 @@ func main() {
 	SessionManager := scs.New()
 	SessionManager.Store = mysqlstore.New(db)
 	SessionManager.Lifetime = 12 * time.Hour
-	SessionManager.Cookie.Secure = true
+	SessionManager.Cookie.Secure = os.Getenv("RAILWAY_ENVIRONMENT") != ""
 
 	app := &Application{
 		errorLog:       errorLog,
@@ -80,38 +76,16 @@ func main() {
 		SessionManager: SessionManager,
 	}
 
-	// Load CA certificate
-	caPemPath := os.Getenv("CA_PEM_PATH")
-	if caPemPath == "" {
-		errorLog.Fatal("CA_PEM_PATH is not set")
-	}
-
-	caPem, err := os.ReadFile(caPemPath)
-	if err != nil {
-		errorLog.Fatalf("Unable to read CA file at %s: %v", caPemPath, err)
-	}
-
-	rootCertPool := x509.NewCertPool()
-	if ok := rootCertPool.AppendCertsFromPEM(caPem); !ok {
-		errorLog.Fatal("Failed to append CA certificate")
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs:          rootCertPool,
-		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
-	}
-
 	srv := &http.Server{
 		Addr:         addr,
 		ErrorLog:     errorLog,
 		Handler:      app.Routes(),
-		TLSConfig:    tlsConfig,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	err = srv.ListenAndServeTLS(os.Getenv("CERT_PEM_PATH"), os.Getenv("KEY_PEM_PATH"))
+	err = srv.ListenAndServe()
 	errorLog.Fatal(err)
 }
 
